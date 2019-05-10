@@ -31,7 +31,7 @@ paleta = c("#404E4D",
 ```{r}
 ## ANTES DE USAR
 # Para criar data/movies.csv
-import_data("scarlett_johansson") # ou com o ator/atriz que você escolher
+import_data("/liam_neeson") # ou com o ator/atriz que você escolher
 ```
 
 
@@ -77,20 +77,72 @@ ggplotly(p)
 ## Agrupamento hierárquico
 
 ```{r}
-agrupamento_h = filmes %>% 
-    mutate(nome = paste0(filme, 
-                         " (av=", 
-                         avaliacao, 
-                         ")")) %>% 
-    as.data.frame() %>% 
-    column_to_rownames("filme") %>% 
-    select(avaliacao) %>%
-    dist(method = "euclidian") %>% 
-    hclust(method = "complete")
+```
 
+
+```{r}
+agrupamento_h <- filmes %>% 
+    mutate(bilheteria =  log10(bilheteria))%>%
+    mutate_at(vars(avaliacao, bilheteria), funs(scale)) %>%
+    as.data.frame()%>% 
+    column_to_rownames("filme") %>% 
+    select(avaliacao, bilheteria) %>%
+    dist(method = "euclidian") %>% 
+    hclust(method = "ward.D")
 ggdendrogram(agrupamento_h, rotate = T, size = 2, theme_dendro = F) + 
     labs(y = "Dissimilaridade", x = "", title = "Dendrograma")
+
 ```
+```{r}
+get_grupos <- function(agrupamento, num_grupos){
+    agrupamento %>% 
+        cutree(num_grupos) %>% 
+        as.data.frame() %>% 
+        mutate(label = rownames(.)) %>% 
+        gather(key =  "k", value = "grupo", -label) %>% 
+        mutate(grupo = as.character(grupo))
+}
+atribuicoes = get_grupos(agrupamento_h, num_grupos = 1:6)
+atribuicoes = atribuicoes %>% 
+    left_join(filmes, by = c("label" = "filme"))
+atribuicoes %>% 
+    ggplot(aes(x = bilheteria, y = avaliacao, colour = grupo)) + 
+    geom_jitter(width = .02, height = 0, size = 1.6, alpha = .6) + 
+    facet_wrap(~ paste(k, " grupos")) + 
+    scale_color_brewer(palette = "Dark2")
+```
+```{r}
+k_escolhido = 4
+ atribuicoes %>% 
+    filter(k == k_escolhido) %>% 
+    ggplot(aes(x = reorder(label, avaliacao), y = avaliacao, colour = grupo)) + 
+    geom_jitter(width = .02, height = 0, size = 3, alpha = .6) + 
+    facet_wrap(~ paste(k, " grupos")) + 
+    scale_color_brewer(palette = "Dark2") + 
+    labs(x = "", y = "Avaliação RT") + 
+    coord_flip() 
+```
+##Grupos
+Podemos classificar os grupos de filmes em quatro categorias: 1- Tiro, porrada e bomba. 2 - Filmes cabeça. 3 - Fúria de titâs e outras vergonhas. 4 - Mestre do Batman
+
+
+##Descrevendo os grupos:
+
+##Grupo 1: Tiro,porrada e bomba
+
+Neste grupo estão localizados os filmes com avaliações médias e boas bilheterias que tem em sua maioria filmes com enredo de ação, onde Neeson interpreta personagens que tem alguma missão pra cumprir e alguém está querendo matá-lo. E para isso não faltam carros explodindo, cenas de luta e tiroteio pra todo lado.
+
+##Grupo 2: Filmes Cabeça
+
+Neste grupos se situam os filmes que saem um pouco do perfil de filmes de ação de Neeson e possuem outras temáticas. São filmes com boa avaliação e bilheteria.
+
+##Grupo 3: Fúria de titâs e outros fiascos:
+
+Neste grupo têm-se os filmes com avaliações ruins e baixa bilheteria englobando filmes da saga Fúria de Titâs e Busca Implacável 2.
+
+##Grupo 4: Mestre do Batman
+
+Filmes que são sucesso tanto de crítica como de bilheteria, destacando-se o papel como Ra's Al Ghul, o mestre e posteriormente vilão do Batman na trilogia de Christopher Nolan.
 
 ```{r}
 get_grupos <- function(agrupamento, num_grupos){
