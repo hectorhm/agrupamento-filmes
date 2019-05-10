@@ -12,6 +12,8 @@ library(here)
 library(cluster)
 library(plotly)
 library(ggdendro)
+library(ggbeeswarm)
+library(broom)
 
 source(here::here("code/lib.R"))
 theme_set(theme_report())
@@ -105,11 +107,13 @@ get_grupos <- function(agrupamento, num_grupos){
 atribuicoes = get_grupos(agrupamento_h, num_grupos = 1:6)
 atribuicoes = atribuicoes %>% 
     left_join(filmes, by = c("label" = "filme"))
-atribuicoes %>% 
+ q = atribuicoes %>% 
     ggplot(aes(x = bilheteria, y = avaliacao, colour = grupo)) + 
     geom_jitter(width = .02, height = 0, size = 1.6, alpha = .6) + 
     facet_wrap(~ paste(k, " grupos")) + 
     scale_color_brewer(palette = "Dark2")
+ 
+ ggplotly(p)
 ```
 ```{r}
 k_escolhido = 4
@@ -122,17 +126,56 @@ k_escolhido = 4
     labs(x = "", y = "Avaliação RT") + 
     coord_flip() 
 ```
-##Grupos
-Podemos classificar os grupos de filmes em quatro categorias: 1- Tiro, porrada e bomba. 2 - Filmes cabeça. 3 - Fúria de titâs e outras vergonhas. 4 - Mestre do Batman
 
+
+```{r}
+m_transformado = filmes %>% 
+    mutate(bilheteria_log = log10(bilheteria))
+summary(m_transformado %>% select(bilheteria, bilheteria_log))
+```
+
+
+```{r}
+m_transformado = filmes %>%
+    mutate(bilheteria_log_scaled = as.vector(scale(log10(bilheteria))),
+           avaliacao_scaled = as.vector(scale(avaliacao)))
+
+m_transformado %>% 
+    select(bilheteria_log_scaled, avaliacao_scaled) %>% 
+    summary()
+```
+```{r}
+n_clusters = 3
+
+km = m_transformado %>%
+    select(bilheteria_log_scaled, avaliacao_scaled) %>%
+    kmeans(centers = n_clusters, nstart = 20)
+
+agrupado = km %>% 
+    augment(m_transformado)
+
+agrupado %>%
+    ggplot(aes(x = avaliacao_scaled, y = bilheteria_log_scaled, color = .cluster))  +
+    geom_point(size = 2) 
+
+agrupado %>%
+    ggplot(aes(x = avaliacao, y = bilheteria, color = .cluster, label = filme))  +
+    geom_point(size = 2) +
+    scale_y_log10()
+```
+
+
+##Grupos
+Podemos classificar os grupos de filmes em três categorias: 1- Fúria de Titãs. 2 - Cavaleiro das Trevas . 3 - Silêncio
+ee
 
 ##Descrevendo os grupos:
 
-##Grupo 1: Tiro,porrada e bomba
+##Grupo 1: Fúria de Titãs
 
 Neste grupo estão localizados os filmes com avaliações médias e boas bilheterias que tem em sua maioria filmes com enredo de ação, onde Neeson interpreta personagens que tem alguma missão pra cumprir e alguém está querendo matá-lo. E para isso não faltam carros explodindo, cenas de luta e tiroteio pra todo lado.
 
-##Grupo 2: Filmes Cabeça
+##Grupo 2: Ra's Al Ghu
 
 Neste grupos se situam os filmes que saem um pouco do perfil de filmes de ação de Neeson e possuem outras temáticas. São filmes com boa avaliação e bilheteria.
 
@@ -140,38 +183,47 @@ Neste grupos se situam os filmes que saem um pouco do perfil de filmes de ação
 
 Neste grupo têm-se os filmes com avaliações ruins e baixa bilheteria englobando filmes da saga Fúria de Titâs e Busca Implacável 2.
 
-##Grupo 4: Mestre do Batman
-
-Filmes que são sucesso tanto de crítica como de bilheteria, destacando-se o papel como Ra's Al Ghul, o mestre e posteriormente vilão do Batman na trilogia de Christopher Nolan.
 
 ```{r}
-get_grupos <- function(agrupamento, num_grupos){
-    agrupamento %>% 
-        cutree(num_grupos) %>% 
-        as.data.frame() %>% 
-        mutate(label = rownames(.)) %>% 
-        gather(key =  "k", value = "grupo", -label) %>% 
-        mutate(grupo = as.character(grupo))
+p = agrupado %>%
+    ggplot(aes(x = avaliacao, y = bilheteria, color = .cluster, label = filme))  +
+    geom_point(size = 2) +
+    scale_y_log10()
+
+ggplotly(p)
+```
+
+
+```{r}
+agrupa_bilheteria_avaliacao <- function(df, k){
+    df %>% 
+        select(bilheteria_log_scaled, avaliacao_scaled) %>%
+        kmeans(centers = k, 
+               nstart = 20) %>% 
+        augment(df) %>% 
+        mutate(.cluster = as.character(.cluster))
 }
 
-atribuicoes = get_grupos(agrupamento_h, num_grupos = 1:6)
-
-atribuicoes = atribuicoes %>% 
-    left_join(filmes, by = c("label" = "filme"))
-
-atribuicoes %>% 
-    ggplot(aes(x = "Filmes", y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 1.6, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
-    scale_color_brewer(palette = "Dark2")
+agrupamentos = tibble(k = 1:6) %>% 
+    mutate(agrupamento = map(k, ~ agrupa_bilheteria_avaliacao(m_transformado, .))) %>% 
+    unnest(agrupamento)
+ 
+agrupamentos %>%
+    ggplot(aes(
+        x = avaliacao ,
+        y = bilheteria,
+        label = filme,
+        colour = .cluster
+    )) +
+    geom_point(size = 2, alpha = .8) +
+    facet_wrap( ~ k) +
+    scale_y_log10()
 
 ```
 
 ```{r}
-k_escolhido = 3
-
 atribuicoes %>% 
-    filter(k == k_escolhido) %>% 
+    filter(k == n_clusters) %>% 
     ggplot(aes(x = reorder(label, avaliacao), y = avaliacao, colour = grupo)) + 
     geom_jitter(width = .02, height = 0, size = 3, alpha = .6) + 
     facet_wrap(~ paste(k, " grupos")) + 
@@ -179,4 +231,25 @@ atribuicoes %>%
     labs(x = "", y = "Avaliação RT") + 
     coord_flip() 
 ```
+
+
+```{r}
+plot_clusgap = function(clusgap, title = "Gap Statistic calculation results") {
+    require("ggplot2")
+    gstab = data.frame(clusgap$Tab, k = 1:nrow(clusgap$Tab))
+    p = ggplot(gstab, aes(k, gap)) + geom_line() + geom_point(size = 5)
+    p = p + geom_errorbar(aes(ymax = gap + SE.sim, ymin = gap - SE.sim), width = .2)
+    p = p + ggtitle(title)
+    return(p)
+}
+```
+
+```{r}
+gaps <- m_transformado %>% 
+    select(bilheteria_log_scaled, avaliacao_scaled) %>% 
+    clusGap(FUN = kmeans, nstart = 20, K.max = 8, B = 200)
+plot_clusgap(gaps)
+```
+
+
 
