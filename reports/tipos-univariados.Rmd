@@ -1,151 +1,48 @@
 ---
-title: "Tipos de filme de FULANO(A)"
+title: "Tipos de filme de Liam Neeson"
+author: "Hector Medeiros"
 output:
-    html_document:
+  html_document:
+    code_folding: "hide"
+    theme: flatly
+    toc: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: no
     df_print: paged
-theme: sandstone
 ---
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r warning = FALSE, message = FALSE, error = FALSE}
 library(tidyverse)
-library(here)
 library(cluster)
+library(ggpubr)
 library(plotly)
-library(ggdendro)
-library(ggbeeswarm)
 library(broom)
-
+library(here)
 source(here::here("code/lib.R"))
 theme_set(theme_report())
+knitr::opts_chunk$set(tidy = FALSE, fig.width = 8, fig.height = 6, echo = TRUE)
 
-knitr::opts_chunk$set(tidy = FALSE,
-                      fig.width = 6,
-                      fig.height = 5,
-                      echo = TRUE)
-
-paleta = c("#404E4D",
-           "#92DCE5",
-           "#938BA1",
-           "#2D3142",
-           "#F4743B")
 ```
 
-```{r}
+```{r warning = FALSE, message = FALSE, error = FALSE}
 ## ANTES DE USAR
 # Para criar data/movies.csv
 import_data("/liam_neeson") # ou com o ator/atriz que você escolher
-```
-
-
-```{r read}
 filmes = read_imported_data()
 ```
 
-## Descrição
 
-```{r}
-filmes %>% 
-    ggplot(aes(x = ano, y = bilheteria)) + 
-    geom_point(size = 4, color = paleta[1]) 
-```
+Liam Neeson é um dos atores mais reverenciados na cultura pop devido em suas várias aparições em grandes filmes. Ele já foi ex agente do FBI, mestre Jedi, mestre do Batman e muitos outros papéis. Então como estão distruibuídos os seus filmes baseado em suas bilheterias e avaliações no Rotten Tomatoes.
 
+```{r warning = FALSE, message = FALSE, error = FALSE}
 
-
-```{r}
-filmes %>% 
-    ggplot(aes(x = bilheteria)) + 
-    geom_histogram(binwidth = 15, fill = paleta[2], color = "black") + 
-    geom_rug(size = .5) 
-```
-
-```{r}
-filmes %>% 
-    ggplot(aes(x = avaliacao)) + 
-    geom_histogram(binwidth = 10, boundary = 0, fill = paleta[3], color = "black") + 
-    geom_rug(size = .5) 
-```
-
-## Estrutura de grupos?
-
-```{r}
-p = filmes %>% 
-    ggplot(aes(x = "", y = bilheteria, label = filme)) + 
-    geom_jitter(width = .05, alpha = .3, size = 3) + 
-    labs(x = "")
-
-ggplotly(p)
-```
-
-## Agrupamento hierárquico
-
-```{r}
-```
-
-
-```{r}
-agrupamento_h <- filmes %>% 
-    mutate(bilheteria =  log10(bilheteria))%>%
-    mutate_at(vars(avaliacao, bilheteria), funs(scale)) %>%
-    as.data.frame()%>% 
-    column_to_rownames("filme") %>% 
-    select(avaliacao, bilheteria) %>%
-    dist(method = "euclidian") %>% 
-    hclust(method = "ward.D")
-ggdendrogram(agrupamento_h, rotate = T, size = 2, theme_dendro = F) + 
-    labs(y = "Dissimilaridade", x = "", title = "Dendrograma")
-
-```
-```{r}
-get_grupos <- function(agrupamento, num_grupos){
-    agrupamento %>% 
-        cutree(num_grupos) %>% 
-        as.data.frame() %>% 
-        mutate(label = rownames(.)) %>% 
-        gather(key =  "k", value = "grupo", -label) %>% 
-        mutate(grupo = as.character(grupo))
-}
-atribuicoes = get_grupos(agrupamento_h, num_grupos = 1:6)
-atribuicoes = atribuicoes %>% 
-    left_join(filmes, by = c("label" = "filme"))
- q = atribuicoes %>% 
-    ggplot(aes(x = bilheteria, y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 1.6, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
-    scale_color_brewer(palette = "Dark2")
- 
- ggplotly(p)
-```
-```{r}
-k_escolhido = 4
- atribuicoes %>% 
-    filter(k == k_escolhido) %>% 
-    ggplot(aes(x = reorder(label, avaliacao), y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 3, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
-    scale_color_brewer(palette = "Dark2") + 
-    labs(x = "", y = "Avaliação RT") + 
-    coord_flip() 
-```
-
-
-```{r}
-m_transformado = filmes %>% 
-    mutate(bilheteria_log = log10(bilheteria))
-summary(m_transformado %>% select(bilheteria, bilheteria_log))
-```
-
-
-```{r}
 m_transformado = filmes %>%
     mutate(bilheteria_log_scaled = as.vector(scale(log10(bilheteria))),
            avaliacao_scaled = as.vector(scale(avaliacao)))
 
-m_transformado %>% 
-    select(bilheteria_log_scaled, avaliacao_scaled) %>% 
-    summary()
-```
-```{r}
 n_clusters = 3
+set.seed(123)
 
 km = m_transformado %>%
     select(bilheteria_log_scaled, avaliacao_scaled) %>%
@@ -154,102 +51,50 @@ km = m_transformado %>%
 agrupado = km %>% 
     augment(m_transformado)
 
-agrupado %>%
-    ggplot(aes(x = avaliacao_scaled, y = bilheteria_log_scaled, color = .cluster))  +
-    geom_point(size = 2) 
+agrupado <- agrupado %>%
+    mutate(grupo = case_when(
+        .cluster == 1 ~ "Mestre do Batman, Leão e Jedi",
+        .cluster == 2 ~ "Tiro, porrada e bomba",
+        .cluster == 3 ~ "Filmes Cabeça", 
+        TRUE ~ "Outros")
+    )
 
-agrupado %>%
-    ggplot(aes(x = avaliacao, y = bilheteria, color = .cluster, label = filme))  +
-    geom_point(size = 2) +
-    scale_y_log10()
+filmes_plot <- agrupado %>%
+    ggplot(aes(x = bilheteria, y = avaliacao, fill = grupo))  +
+    geom_point(aes(text = paste("<b>Filme:</b>", filme, "<br><b>Bilheteria:</b> US$", round(bilheteria, 1),
+                                "mi<br><b>Avaliação (RT):</b>", avaliacao, "<br><b>Ano:</b>", ano)),
+               size = 4, shape = 21, color = 'gray25') +
+   stat_chull(aes(color = grupo, fill = grupo), alpha = 0.5, geom = 'polygon') +
+    labs(title = "Filmes com Liam Neeson.",
+         x = "Bilheteria (em milhões de dólares)", y = "Avaliação (<i>Rotten Tomatoe</i>s)") +
+    scale_x_log10() +
+    theme(legend.position = 'none', plot.title = element_text(hjust = 0.5))
+
+ggplotly(filmes_plot, tooltip = c('text'))
 ```
 
 
-##Grupos
+## Grupos
 Podemos classificar os grupos de filmes em três categorias: 1- Fúria de Titãs. 2 - Cavaleiro das Trevas . 3 - Silêncio
-ee
 
-##Descrevendo os grupos:
+## Descrevendo os grupos:
 
-##Grupo 1: Fúria de Titãs
+## Grupo 1: Tiro, porrada e bomba
 
-Neste grupo estão localizados os filmes com avaliações médias e boas bilheterias que tem em sua maioria filmes com enredo de ação, onde Neeson interpreta personagens que tem alguma missão pra cumprir e alguém está querendo matá-lo. E para isso não faltam carros explodindo, cenas de luta e tiroteio pra todo lado.
+- **Filmes:** *Busca Implacável(Taken)* (2009), *Fúria de Titãs* (2010), *Fúria de Titãs 2* (2012).
 
-##Grupo 2: Ra's Al Ghu
+Boa parde da mitologia e memes de Liam Neeson pode ser explicada nesse grupo que é o mais puro suco de aleatoriedade cinematográfica. Muito dessa mística fora criada na franquia Busca Implacável(Taken), onde Neeson vive um ex agente secreto que teve sua filha sequestrada e aí temos o mais puro suco de filme de ação. Socos, pontapés, milhares de tiros, carros capotando e muitas explosões. Neste mesmo seguimento seguem filmes como The Commuter e Non-stop
+Ainda temos os dois filmes da franquia *Fúria de Titãs*, onde Liam dá a vida a Zeus, o todo poderoso deus grego do raio, líder dos deuses do Olimpo e pai de Perséu. Aqui vemos uma atuação desastrosa como todo o filme.
 
-Neste grupos se situam os filmes que saem um pouco do perfil de filmes de ação de Neeson e possuem outras temáticas. São filmes com boa avaliação e bilheteria.
+## Grupo 2: Mestre do Batman, Leão e Jedi
 
-##Grupo 3: Fúria de titâs e outros fiascos:
+- **Filmes:** *Star Wars: A Ameaça Fantasma* (1999), *As Crônicas de Narnia: O leão, a feiticeira e o guarda roupa* (2005), *Batman Begins* (2005).
 
-Neste grupo têm-se os filmes com avaliações ruins e baixa bilheteria englobando filmes da saga Fúria de Titâs e Busca Implacável 2.
+Aqui temos talvez os filmes mais conhecidos de Neeson e que o marcaram na cultura pop do século XXI. Ele interpretou Qui-Gon Jinn o mestre Jedi que foi o respónsavel por descobrir o pequeno Anakin Skywalker. Outro grande papel de destaque foi o de Ra's Al Ghul em *Batman Begins*, onde deu vida ao mestre de Bruce Wayne antes desse se tornar o Morcego mais famoso do mundo. Liam ainda empresta sua voz para viver Aslan, o grande Leão no primeiro filme d'As Crônicas de Nárnia.  
 
+## Grupo 3: Filmes Cabeça:
 
-```{r}
-p = agrupado %>%
-    ggplot(aes(x = avaliacao, y = bilheteria, color = .cluster, label = filme))  +
-    geom_point(size = 2) +
-    scale_y_log10()
+- **Filmes:** *The Endurance: Shackleton's Legendary Antarctic Expedition* (2001), *Ponyo* (2008), *Silence* (2017).
 
-ggplotly(p)
-```
-
-
-```{r}
-agrupa_bilheteria_avaliacao <- function(df, k){
-    df %>% 
-        select(bilheteria_log_scaled, avaliacao_scaled) %>%
-        kmeans(centers = k, 
-               nstart = 20) %>% 
-        augment(df) %>% 
-        mutate(.cluster = as.character(.cluster))
-}
-
-agrupamentos = tibble(k = 1:6) %>% 
-    mutate(agrupamento = map(k, ~ agrupa_bilheteria_avaliacao(m_transformado, .))) %>% 
-    unnest(agrupamento)
- 
-agrupamentos %>%
-    ggplot(aes(
-        x = avaliacao ,
-        y = bilheteria,
-        label = filme,
-        colour = .cluster
-    )) +
-    geom_point(size = 2, alpha = .8) +
-    facet_wrap( ~ k) +
-    scale_y_log10()
-
-```
-
-```{r}
-atribuicoes %>% 
-    filter(k == n_clusters) %>% 
-    ggplot(aes(x = reorder(label, avaliacao), y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 3, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
-    scale_color_brewer(palette = "Dark2") + 
-    labs(x = "", y = "Avaliação RT") + 
-    coord_flip() 
-```
-
-
-```{r}
-plot_clusgap = function(clusgap, title = "Gap Statistic calculation results") {
-    require("ggplot2")
-    gstab = data.frame(clusgap$Tab, k = 1:nrow(clusgap$Tab))
-    p = ggplot(gstab, aes(k, gap)) + geom_line() + geom_point(size = 5)
-    p = p + geom_errorbar(aes(ymax = gap + SE.sim, ymin = gap - SE.sim), width = .2)
-    p = p + ggtitle(title)
-    return(p)
-}
-```
-
-```{r}
-gaps <- m_transformado %>% 
-    select(bilheteria_log_scaled, avaliacao_scaled) %>% 
-    clusGap(FUN = kmeans, nstart = 20, K.max = 8, B = 200)
-plot_clusgap(gaps)
-```
-
-
+Neste grupos se situam os filmes que saem um pouco do perfil de filmes de ação de Neeson e possuem outras temáticas diferentes ao perfil que Liam acabou tomando. Destaca-se nesse grupo o filme The Endurance, documentário de 2001 onde Liam é o narrador. Outro filme bastante bem avaliado nesse grupo é a aclamada animação produzida pelos estúdios Ghibli.
 
